@@ -179,10 +179,10 @@ tbody td{padding:12px 16px;font-size:13px}
   <!-- UPLOAD -->
   <div class="sec-label">Шаг 1 — Загрузка файла</div>
   <div class="upload-zone" id="upload-zone">
-    <input type="file" id="file-input" accept=".xlsx,.xls">
+    <input type="file" id="file-input" accept=".xlsx,.xls,.csv">
     <span class="upload-icon">📊</span>
     <div class="upload-title" id="upload-title">Перетащите Excel-файл или нажмите для выбора</div>
-    <div class="upload-sub">.xlsx / .xls · Выгрузка из Chatwoot</div>
+    <div class="upload-sub">.xlsx / .xls / .csv · Выгрузка из Chatwoot</div>
     <div class="upload-fname" id="upload-fname"></div>
   </div>
 
@@ -318,7 +318,7 @@ fileInput.addEventListener('change', () => {
 });
 
 function handleFile(file) {
-  if (!file.name.match(/\.(xlsx|xls)$/i)) {
+  if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
     showError('Неверный формат файла. Загрузите .xlsx или .xls');
     return;
   }
@@ -352,7 +352,29 @@ function handleFile(file) {
     } catch(err) { hideProgress(); showError('Ошибка чтения файла: ' + err.message); }
   };
   reader.onerror = () => { hideProgress(); showError('Не удалось прочитать файл.'); };
-  reader.readAsArrayBuffer(file);
+  if (file.name.match(/\.csv$/i)) {
+    reader.onload = e => {
+      try {
+        setProgress(40, 'Парсинг CSV...');
+        const wb = XLSX.read(e.target.result, { type:'string', cellDates:true, raw:false });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rawData = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'' });
+        setProgress(80, 'Поиск колонок...');
+        detectColumns();
+        setProgress(100, 'Готово');
+        setTimeout(hideProgress, 500);
+        uploadZone.classList.add('done');
+        document.getElementById('upload-title').textContent = '✅ Файл загружен';
+        document.getElementById('upload-fname').textContent =
+          file.name + '  ·  ' + rawData.length + ' строк';
+        document.getElementById('btn-calc').disabled =
+          (colCsat === -1 || colsOp.length === 0);
+      } catch(err) { hideProgress(); showError('Ошибка чтения CSV: ' + err.message); }
+    };
+    reader.readAsText(file, 'UTF-8');
+  } else {
+    reader.readAsArrayBuffer(file);
+  }
 }
 
 /* ══════════════════════════════════════════
